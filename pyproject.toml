@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "idraw2-internal"
+version = "0.1.0"
+description = "Extracted iDraw2 internal plotting pipeline modules"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-2.0-or-later" }
+authors = [
+  { name = "idraw team" },
+]
+dependencies = [
+  "drawcore_plotink @ git+https://github.com/cfloutier/drawcore_plotink.git@main",
+  "lxml>=6.1.0",
+  "requests>=2.31.0",
+  "tqdm>=4.64.1",
+  "ink_extensions>=2.2.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["idraw2_0internal*", "hta*"]

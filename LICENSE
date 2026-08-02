@@ -1,0 +1,6 @@
+SPDX-License-Identifier: GPL-2.0-or-later
+
+This repository contains source files imported from the iDraw2 Inkscape extension internals.
+Many imported files include GPL notices in their headers (version 2 or later).
+
+Refer to the per-file headers for copyright and license notices.
