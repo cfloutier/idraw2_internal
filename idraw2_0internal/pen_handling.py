@@ -253,8 +253,8 @@ class PenHandler:
                 drawcore_motion.PBOutValue( ad_ref.plot_status.port, ad_ref.options.speed_penup, 0) # I/O Pin PWM output: low
             else:
                 drawcore_motion.PBOutValue( ad_ref.plot_status.port, ad_ref.options.speed_penup, 0) # I/O Pin PWM output: low
-                drawcore_motion.sendPenUp(ad_ref.plot_status.port, ad_ref.options.pen_pos_up,ad_ref.options.pen_rate_raise,ad_ref.options.speed_penup)                
-                
+                drawcore_motion.sendPenUp(ad_ref.plot_status.port, ad_ref.options.pen_pos_up,ad_ref.options.pen_rate_raise,ad_ref.options.speed_penup)
+
         self.phys.z_up = True
 
 
