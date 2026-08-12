@@ -127,36 +127,56 @@ class PenLiftTiming: # pylint: disable=too-few-public-methods
         Servo travel time is estimated as the 4th power average (a smooth blend between):
           (A) Servo transit time for fast servo sweeps (t = slope * v_dist + min) and
           (B) Sweep time for slow sweeps (t = v_dist * full_scale_sweep_time / sweep_rate)
+
+        Ported from the upstream AxiDraw driver (evil-mad/axidraw,
+        "inkscape driver/pen_handling.py"), where this was disabled because
+        idraw2_0_conf.py never carried over servo_move_slope/servo_move_min/
+        servo_sweep_time (and the narrow-band nb_servo_* equivalents). Those
+        constants are restored in idraw2_0_conf.py using upstream's AxiDraw
+        defaults as a starting point. Note: this iDraw2 machine's pen lift is
+        a stepper motor, not an RC servo like AxiDraw's - the "servo_*" names
+        are inherited terminology, and the timing physics they model may not
+        transfer directly. Treat these as a first approximation pending
+        real-hardware calibration, not as trustworthy constants.
+
+        Known scale caveat: this formula divides by ad_ref.options.pen_rate_raise/
+        pen_rate_lower expecting a 1-100 rate (upstream default 75/50), but this
+        fork's default is 5000 (idraw2_0_conf.py) - clamped to [1, 15000] the same
+        way speed_pendown/speed_penup are, elsewhere in this codebase. Left as-is
+        (not overridden here) since idraw_ui never sets these and changing the
+        default would be a separate, deliberate decision; at 5000 the sweep-time
+        term below is ~66x smaller than upstream intended, so raise_time/lower_time
+        are currently dominated by the servo_move_min/servo_move_slope term alone.
         '''
         v_dist = abs(float(ad_ref.options.pen_pos_up - pen_down_pos))
 
-        # if narrow_band:
-        #     servo_move_slope = ad_ref.params.nb_servo_move_slope
-        #     servo_move_min = ad_ref.params.nb_servo_move_min
-        #     servo_sweep_time = ad_ref.params.nb_servo_sweep_time
-        # else:
-        #     servo_move_slope = ad_ref.params.servo_move_slope
-        #     servo_move_min = ad_ref.params.servo_move_min
-        #     servo_sweep_time = ad_ref.params.servo_sweep_time
+        if narrow_band:
+            servo_move_slope = ad_ref.params.nb_servo_move_slope
+            servo_move_min = ad_ref.params.nb_servo_move_min
+            servo_sweep_time = ad_ref.params.nb_servo_sweep_time
+        else:
+            servo_move_slope = ad_ref.params.servo_move_slope
+            servo_move_min = ad_ref.params.servo_move_min
+            servo_sweep_time = ad_ref.params.servo_sweep_time
 
-        # # Raising time:
-        # v_time = int(((servo_move_slope * v_dist + servo_move_min) ** 4 +
-        #     (servo_sweep_time * v_dist / ad_ref.options.pen_rate_raise) ** 4) ** 0.25)
-        # if v_dist < 0.9:  # If up and down positions are equal, no initial delay
-        #     v_time = 0
+        # Raising time:
+        v_time = int(((servo_move_slope * v_dist + servo_move_min) ** 4 +
+            (servo_sweep_time * v_dist / ad_ref.options.pen_rate_raise) ** 4) ** 0.25)
+        if v_dist < 0.9:  # If up and down positions are equal, no initial delay
+            v_time = 0
 
-        # v_time += ad_ref.options.pen_delay_up
-        # v_time = max(0, v_time)  # Do not allow negative total delay time
-        # self.raise_time = v_time
+        v_time += ad_ref.options.pen_delay_up
+        v_time = max(0, v_time)  # Do not allow negative total delay time
+        self.raise_time = v_time
 
-        # # Lowering time:
-        # v_time = int(((servo_move_slope * v_dist + servo_move_min) ** 4 +
-        #     (servo_sweep_time * v_dist / ad_ref.options.pen_rate_lower) ** 4) ** 0.25)
-        # if v_dist < 0.9:  # If up and down positions are equal, no initial delay
-        #     v_time = 0
-        # v_time += ad_ref.options.pen_delay_down
-        # v_time = max(0, v_time)  # Do not allow negative total delay time
-        # self.lower_time = v_time
+        # Lowering time:
+        v_time = int(((servo_move_slope * v_dist + servo_move_min) ** 4 +
+            (servo_sweep_time * v_dist / ad_ref.options.pen_rate_lower) ** 4) ** 0.25)
+        if v_dist < 0.9:  # If up and down positions are equal, no initial delay
+            v_time = 0
+        v_time += ad_ref.options.pen_delay_down
+        v_time = max(0, v_time)  # Do not allow negative total delay time
+        self.lower_time = v_time
 
 
 class PenStatus:

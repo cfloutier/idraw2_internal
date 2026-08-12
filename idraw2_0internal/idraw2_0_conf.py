@@ -15,8 +15,9 @@ pen_pos_down = 5       # Height of pen when lowered (0-100)
 laser_power = 50
 laser_focus_power =3
 
-pen_rate_raise = 5000     # Rate of raising pen (1-100)
-pen_rate_lower = 5000     # Rate of lowering pen (1-100)
+pen_rate_raise = 5000     # Rate of raising pen (firmware servo-rate units; NOT the
+                          #   1-100 scale used by PenLiftTiming below, see params section)
+pen_rate_lower = 5000     # Rate of lowering pen (firmware servo-rate units; see above)
 
 pen_delay_up = 0        # Optional delay after pen is raised (ms)
 pen_delay_down = 0      # Optional delay after pen is lowered (ms)
@@ -221,6 +222,20 @@ min_gap = 0.008  # Distance Threshold (inches). Default value: 0.008 inches; sma
 # Servo motion limits, in units of (1/12 MHz), about 83 ns:
 servo_max = 27831  # Highest allowed position; "100%" on the scale.    Default value: 25200 units, or 2.31 ms.
 servo_min = 9855   # Lowest allowed position; "0%" on the scale.        Default value: 10800 units, or 0.818 ms.
+
+# Pen lift/lower timing model (PenLiftTiming.update(), pen_handling.py). Restored from
+# the upstream AxiDraw driver (evil-mad/axidraw, axidraw_conf.py). These are AxiDraw's
+# RC-servo defaults - this iDraw2 machine's pen lift is a STEPPER motor, not an RC
+# servo, so the underlying physics differ (not just untuned): expect these constants to
+# need real calibration, not just fine-tuning, once real-plot timing data is available.
+servo_sweep_time = 200   # Duration, ms, to sweep control signal over 100% range. Default: 200
+servo_move_min = 45      # Minimum time, ms, for pen lift/lower of non-zero distance. Default: 45
+servo_move_slope = 2.69  # Additional time, ms, per % of vertical travel. Default: 2.69
+
+# Narrow-band (brushless) servo equivalents of the three constants above:
+nb_servo_sweep_time = 70    # Duration, ms, to sweep control signal over 100% range. Default: 70
+nb_servo_move_min = 20      # Minimum time, ms, for pen lift/lower of non-zero distance. Default: 20
+nb_servo_move_slope = 1.28  # Additional time, ms, per % of vertical travel. Default: 1.28
 
 # Note that previous versions of this configuration file used a wider range, 7500 - 28000, corresponding to a range of 625 us - 2333 us.
 # The new limiting values are equivalent to 16%, 86% on that prior scale, giving a little less vertical range, but higher resolution.
