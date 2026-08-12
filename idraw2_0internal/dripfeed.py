@@ -115,7 +115,15 @@ def feed_sm(ad_ref, move, drip_logger):
     move_dist = move[2][3]
 
     if ad_ref.options.preview:
-        ad_ref.plot_status.stats.pt_estimate += move_time
+        if move_time > 50 and ad_ref.options.mode != "manual":
+            # Mirror the real-mode "sleep move_time - 30 ms" compensation in the
+            # else branch below (drawcore_motion.doXYMove + time.sleep). Without
+            # this, the estimate systematically overshoots on drawings with many
+            # segments longer than 50 ms (e.g. many separated pen-up hops), since
+            # each one is 30 ms cheaper in reality than the raw move_time.
+            ad_ref.plot_status.stats.pt_estimate += move_time - 30
+        else:
+            ad_ref.plot_status.stats.pt_estimate += move_time
         # log_sm_for_preview(ad_ref, move)
 
         ad_ref.preview.log_sm_move(ad_ref, move)
