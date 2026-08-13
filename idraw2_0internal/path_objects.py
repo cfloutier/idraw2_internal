@@ -637,13 +637,19 @@ class DocDigest:
             if node.tag == 'plotdata':
                 self.plotdata = dict(node.attrib)
 
-    def crop(self, distance):
+    def crop(self, distance, path_index=-1):
         """
         Remove the initial portion of a DocDigest object to prepare for plotting the
         remaining portion. For use only on a flattened digest, after optimizations.
 
         Inputs:
             distance: Pen-down distance through the plot at which to resume plotting.
+            path_index: optional count of whole path elements confirmed fully
+                plotted before the pause, tracked in parallel with `distance`
+                (see PlotStats.paths_completed / SVGPlotData.pause_path_index).
+                Pass -1 (default) when unavailable (e.g. a resume file saved
+                before this parameter existed), which reproduces the previous
+                distance-only behavior exactly.
 
         All complete path elements that occur before distance is will be omitted.
         If distance occurs within a path, splice that path and remove the first part of it.
@@ -652,11 +658,23 @@ class DocDigest:
         the beginning of the layer, we do include that time delay (but skip past any
         programmatic pause that may have already occurred). If we are beginning in a
         layer that has a time delay, but *after* the time delay, strip out that delay.
+
+        Why path_index: cumulative pen-down `distance` alone cannot reliably tell
+        "the path just plotted before pause" from "the next path, never plotted"
+        when many consecutive paths have near-zero length (e.g. stippling dots) -
+        each contributes almost nothing to the running total either way, so the
+        distance-only walk below can silently skip a long run of paths that were
+        never actually drawn. `path_index` sidesteps that by comparing an exact
+        integer count instead, for the whole-path skip decision. The one path
+        that was genuinely in progress at pause time still needs `distance` (via
+        crop_by_distance below) to find exactly where within it to splice - that
+        part is unaffected and still exact for paths with real length.
         """
         if distance <= 0:
             return
 
         dist_so_far = 0 # Distance counter for cropping
+        path_counter = 0 # Count of whole paths examined so far, across all layers
 
         # Step through document by plot digest path distances.
         #   Remove any paths that we are past
@@ -671,14 +689,25 @@ class DocDigest:
             for path in layer.paths:
 
                 path_length = path.length()
-                skip_length_tol = min(path_length/100, 0.001) # Tighter tolerance for short paths
-                if (dist_so_far + path_length) <= (distance + skip_length_tol):
+
+                if path_index >= 0:
+                    already_plotted = path_counter < path_index
+                else:
+                    skip_length_tol = min(path_length/100, 0.001) # Tighter tol. for short paths
+                    already_plotted = (dist_so_far + path_length) <= (distance + skip_length_tol)
+
+                if already_plotted:
                     dist_so_far += path_length
+                    path_counter += 1
                     start_index += 1 # This count will be used to slice the path out.
                     layer.props.delay = None # No delay, since not on first path of layer.
                     continue
 
-                if distance > dist_so_far:
+                # Only splice a path that has real length to splice; a
+                # degenerate (near-zero-length) path is atomic - either it was
+                # already counted as fully plotted above, or it wasn't plotted
+                # at all and should simply be kept whole, to be redrawn.
+                if distance > dist_so_far and path_length > 1e-9:
                     layer.props.delay = None # No delay, splice is after beginning of path
                     # Crop that path partway, right at our target distance:
                     target = distance - dist_so_far

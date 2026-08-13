@@ -366,7 +366,10 @@ class iDraw(inkex.Effect):
                 return
 
             if self.options.mode == "res_plot": # Crop digest up to when the plot resumes:
-                self.digest.crop(self.plot_status.resume.old.pause_dist)
+                self.digest.crop(
+                    self.plot_status.resume.old.pause_dist,
+                    path_index=self.plot_status.resume.old.pause_path_index,
+                )
 
             # CLI PROGRESS BAR: SET UP DRY RUN TO ESTIMATE PLOT LENGTH & TIME
             if self.plot_status.progress.review(self.plot_status, self.options):
@@ -381,6 +384,9 @@ class iDraw(inkex.Effect):
 
                 # Update so that if the plot is paused, we can resume again
                 self.plot_status.stats.down_travel_inch = self.plot_status.resume.old.pause_dist
+                self.plot_status.stats.paths_completed = max(
+                    self.plot_status.resume.old.pause_path_index, 0
+                )
 
             first_copy = True
             while self.plot_status.copies_to_plot != 0:
@@ -844,6 +850,11 @@ class iDraw(inkex.Effect):
                 if self.plot_status.stopped:
                     return
                 self.plot_polyline(path_item.subpaths[0])
+                if not self.plot_status.stopped:
+                    # This path_item's full move list ran to completion (not
+                    # interrupted by a pause/stop partway through) - count it
+                    # for the exact-resume-point index. See DocDigest.crop().
+                    self.plot_status.stats.paths_completed += 1
             self.use_layer_speed = old_use_layer_speed # Restore old layer status variables
 
             if self.layer_speed_pendown != old_layer_speed_pendown:
@@ -978,6 +989,7 @@ class iDraw(inkex.Effect):
 
             self.plot_status.resume.new.pause_dist = self.plot_status.stats.down_travel_inch
             self.plot_status.resume.new.pause_ref = self.plot_status.stats.down_travel_inch
+            self.plot_status.resume.new.pause_path_index = self.plot_status.stats.paths_completed
 
     def serial_connect(self):
         """ Connect to iDraw over USB """

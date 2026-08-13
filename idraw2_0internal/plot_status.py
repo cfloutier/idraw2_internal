@@ -44,6 +44,7 @@ class SVGPlotData:  # pylint: disable=too-few-public-methods, too-many-instance-
         self.layer = None
         self.pause_dist = None
         self.pause_ref = None
+        self.pause_path_index = None
         self.plob_version = None
         self.row = None
         self.rand_seed = None
@@ -58,6 +59,13 @@ class SVGPlotData:  # pylint: disable=too-few-public-methods, too-many-instance-
         self.layer = -2         # <0 is a flag to *print all layers; -2 indicates default
         self.pause_dist = -1    # <0 is a flag that there is no resume data.
         self.pause_ref = -1    # <0 is a flag that there is no resume data.
+        # Count of whole PathItems confirmed fully plotted before pause, across
+        # the whole document in digest order. <0 means "not available" (e.g. a
+        # resume file saved before this field existed) - crop() then falls back
+        # to distance-only skipping. Exists because cumulative pen-down distance
+        # cannot reliably distinguish "already plotted" from "not yet plotted"
+        # among many consecutive near-zero-length paths (stippling dots).
+        self.pause_path_index = -1
         self.plob_version = "n/a"
         self.row = 0
         self.rand_seed = 1
@@ -70,6 +78,7 @@ class SVGPlotData:  # pylint: disable=too-few-public-methods, too-many-instance-
         """ Clean up settings when a plot finishes normally; indicate no resume needed """
         self.layer = -2         # <0 is a flag to *print all layers; -2 indicates default
         self.pause_dist = -1    # <0 is a flag that there is no resume data.
+        self.pause_path_index = -1
 
 
 
@@ -125,6 +134,17 @@ class ResumeStatus:
                 self.read = True
             except TypeError: # An error leaves self.read as False.
                 svg_tree.remove(data_node) # Remove data node
+                return
+
+            # Optional field, added after the above; absence (older resume
+            # files) must not invalidate the rest of the resume data above -
+            # crop() falls back to distance-only skipping when this is -1.
+            path_index_attr = data_node.get('pause_path_index')
+            if path_index_attr is not None:
+                try:
+                    self.old.pause_path_index = int(path_index_attr)
+                except (TypeError, ValueError):
+                    self.old.pause_path_index = -1
 
     def write_to_svg(self, svg_tree):
         """
@@ -147,6 +167,7 @@ class ResumeStatus:
             data_node.set('layer', str(self.new.layer))
             data_node.set('pause_dist', f"{round(self.new.pause_dist * 25400)}") # units µm
             data_node.set('pause_ref',  f"{round(self.new.pause_ref * 25400)}") # units µm
+            data_node.set('pause_path_index', str(self.new.pause_path_index))
             data_node.set('last_x', f"{self.new.last_x * 25.4}") # float; units mm
             data_node.set('last_y', f"{self.new.last_y * 25.4}") # float; units mm
             data_node.set('rand_seed', f"{self.new.rand_seed}")
@@ -158,6 +179,7 @@ class ResumeStatus:
         self.new.layer = self.old.layer
         self.new.pause_dist = self.old.pause_dist
         self.new.pause_ref = self.old.pause_ref
+        self.new.pause_path_index = self.old.pause_path_index
         self.new.plob_version = self.old.plob_version
         self.new.row = self.old.row
         self.new.rand_seed = self.old.rand_seed
@@ -220,6 +242,9 @@ class ResumeStatus:
                 new_pause_dist = -1
                 new_pos_text = "the file beginning"
             self.new.pause_dist = new_pause_dist
+            # Manual offset invalidates the path-count shortcut; fall back to
+            # distance-only cropping for this adjusted position.
+            self.new.pause_path_index = -1
 
         elif ad_ref.options.manual_cmd == "res_adj_mm":
             original_dist_text = original_dist_mm
@@ -232,6 +257,7 @@ class ResumeStatus:
                 new_pause_dist = -1
                 new_pos_text = "the file beginning"
             self.new.pause_dist = new_pause_dist
+            self.new.pause_path_index = -1
 
         else: # res_read = "res_read" Dual units and readout only.
             if self.old.pause_dist < 0:
@@ -273,6 +299,11 @@ class PlotStats:
         self.pt_estimate = 0        # Plot time estimate (for all pages), ms
         self.page_delays = 0        # Delays between pages, ms
         self.layer_delays = 0       # Delays added at beginnings of layers, ms
+        # Count of whole PathItems fully plotted so far, across the whole
+        # document in digest order (not reset per layer/page). Used to record
+        # an exact resume point alongside down_travel_inch - see
+        # SVGPlotData.pause_path_index and DocDigest.crop().
+        self.paths_completed = 0
 
     def reset(self):
         ''' Reset certain attributes to defaults '''
@@ -283,6 +314,7 @@ class PlotStats:
         self.pt_estimate = 0
         self.page_delays = 0
         self.layer_delays = 0
+        self.paths_completed = 0
 
     def next_page(self):
         ''' Zero out distance traveled for the new page '''

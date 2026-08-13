@@ -75,7 +75,13 @@ Recommended update process:
 2. Keep changes in isolated commits:
    - `upstream import: <version/date>`
    - `local adaptation: <topic>`
-3. Re-run import smoke tests and update this README with version notes.
+3. Before merging, read `docs/LOCAL_MODIFICATIONS.md` — it lists every local
+   behavioral change made on top of the vendor source (file, what changed,
+   why, and what to check when re-merging). Re-apply or re-derive each entry
+   against the new vendor code, then re-run its listed tests.
+4. Re-run import smoke tests and update this README with version notes.
+
+See `docs/LOCAL_MODIFICATIONS.md` for the current list of local changes.
 
 ## Quick smoke check
 
