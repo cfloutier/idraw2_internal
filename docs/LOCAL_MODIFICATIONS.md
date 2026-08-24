@@ -166,6 +166,58 @@ entry before deleting it, don't just silently drop it).
   specific failure mode. Not yet validated on real hardware with an actual
   mid-plot Pause/Resume on a stippling job.
 
+### 4. `pt_estimate` split into pendown/penup motion time (`down_motion_ms`/`up_motion_ms`)
+
+- **Files:** `idraw2_0internal/plot_status.py`, `idraw2_0internal/dripfeed.py`
+- **Commit:** *(this change — see repo log for the commit this entry ships
+  with)*
+- **Vendor state found:** `PlotStats.pt_estimate` (ms) accumulates the
+  preview-mode time estimate as a single opaque scalar. `feed_sm()`
+  (`dripfeed.py`) adds every SM move's (already `-30ms`-discounted, per
+  entry #2) contribution to `pt_estimate` regardless of pen state — even
+  though `ad_ref.pen.phys.z_up` (the flag needed to know whether a move is
+  pen-up or pen-down) is read one statement later, for the *distance* split
+  (`stats.add_dist(z_up, move_dist)` → `up_travel_inch`/`down_travel_inch`).
+  So the distance split already existed; the equivalent time split did not.
+- **What changed:** in `feed_sm()`'s preview branch, after computing the
+  (possibly `-30ms`-discounted) `discounted_time`, add it to
+  `stats.up_motion_ms` if `z_up` else `stats.down_motion_ms` — mirroring the
+  existing distance split exactly, same flag, same point in the function.
+  `PlotStats` gained the two new fields (`__init__`/`reset()`), and
+  `report()`'s existing `pt_estimate *= options.copies` multi-copy handling
+  was mirrored for the two new fields too, for consistency (idraw_ui does
+  not currently exercise multi-copy plotting).
+- **Why:** `down_motion_ms + up_motion_ms` is a lossless partition of
+  `pt_estimate`'s SM-move contribution (the remaining contributions — pen
+  lift/lower time, page/layer delays — are already separately available:
+  lift time via `session.pen.heights.times.raise_time`/`.lower_time`, delay
+  via `stats.page_delays`/`layer_delays`). idraw_ui's self-calibrating
+  estimate (see `idraw_ui/docs/AI_HANDOFF_PLAN.md` → "Time-estimation
+  refinement") needs to correct pendown motion time, penup motion time, and
+  pen-lift time *independently*, since prior calibration work showed a
+  single opaque estimate can't be corrected safely (a whole-run regression
+  predicted negative durations for already-accurate short jobs) — different
+  drawings are dominated by different components, so each needs its own
+  learned correction weight.
+- **Known caveat:** this is purely an additional read/split of data the
+  vendor already computes — it does not change `pt_estimate`'s value or any
+  existing behavior. `down_motion_ms`/`up_motion_ms` are only meaningful in
+  preview mode (never incremented during a real plot), matching
+  `pt_estimate`'s own existing preview-only semantics.
+- **If vendor changed this upstream:** if the vendor rewrote `feed_sm()`'s
+  preview branch (e.g. changed the discount logic from entry #2), re-apply
+  the `z_up`-gated split on top of whatever the new discounted-time
+  computation is — the split must always add the *same* value that goes
+  into `pt_estimate`, not the raw undiscounted `move_time`. If the vendor
+  added their own down/up split with different field names, prefer theirs
+  and update idraw_ui's `idraw2_runtime.py::_extract_metrics()` to read the
+  new names (it already reads these defensively via `getattr(..., 0.0)`, so
+  it degrades gracefully rather than crashing either way).
+- **Tests:** `test_dripfeed.py` (repo root, new) — covers the split by pen
+  state, that the discount is applied before splitting, and that the two
+  fields sum back to `pt_estimate`'s SM-move total across a mixed sequence
+  of moves. `test_plot_status.py` — covers `__init__`/`reset()` defaults.
+
 ## Files with no local modifications (as of this writing)
 
 Everything else under `idraw2_0internal/` and `hta/` is the unmodified

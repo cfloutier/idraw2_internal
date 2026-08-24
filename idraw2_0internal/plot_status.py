@@ -297,6 +297,15 @@ class PlotStats:
         self.up_travel_tot = 0      # Total pen-up travel distance, inches
         self.down_travel_tot = 0    # Total pen-down travel distance, inches
         self.pt_estimate = 0        # Plot time estimate (for all pages), ms
+        # Preview-mode-only split of pt_estimate's SM-move contribution by
+        # pen state (down_motion_ms + up_motion_ms + lift time + page/layer
+        # delays == pt_estimate; a lossless partition, not a separate
+        # estimate). See dripfeed.py::feed_sm(), which sets these alongside
+        # pt_estimate using the same z_up flag add_dist() already uses to
+        # split *distance*. Added for idraw_ui's self-calibrating estimate,
+        # which needs to correct pendown/penup motion time independently.
+        self.down_motion_ms = 0
+        self.up_motion_ms = 0
         self.page_delays = 0        # Delays between pages, ms
         self.layer_delays = 0       # Delays added at beginnings of layers, ms
         # Count of whole PathItems fully plotted so far, across the whole
@@ -312,6 +321,8 @@ class PlotStats:
         self.up_travel_tot = 0
         self.down_travel_tot = 0
         self.pt_estimate = 0
+        self.down_motion_ms = 0
+        self.up_motion_ms = 0
         self.page_delays = 0
         self.layer_delays = 0
         self.paths_completed = 0
@@ -344,6 +355,8 @@ class PlotStats:
             self.page_delays = 1000 * options.page_delay * (options.copies - 1)
             self.layer_delays *= options.copies
             self.pt_estimate *= options.copies
+            self.down_motion_ms *= options.copies
+            self.up_motion_ms *= options.copies
             self.pt_estimate += self.page_delays
 
         if not options.report_time: # Portion above this necessary for time computations.

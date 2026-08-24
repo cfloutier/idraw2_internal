@@ -10,7 +10,7 @@ import unittest
 
 from lxml import etree
 
-from idraw2_0internal.plot_status import ResumeStatus
+from idraw2_0internal.plot_status import PlotStats, ResumeStatus
 
 
 class ResumePathIndexSerializationTests(unittest.TestCase):
@@ -72,6 +72,21 @@ class ResumePathIndexSerializationTests(unittest.TestCase):
         resume.old.pause_path_index = 7
         resume.copy_old()
         self.assertEqual(resume.new.pause_path_index, 7)
+
+
+class PlotStatsMotionSplitTests(unittest.TestCase):
+    def test_init_defaults_to_zero(self) -> None:
+        stats = PlotStats()
+        self.assertEqual(stats.down_motion_ms, 0)
+        self.assertEqual(stats.up_motion_ms, 0)
+
+    def test_reset_zeroes_the_split_fields(self) -> None:
+        stats = PlotStats()
+        stats.down_motion_ms = 123
+        stats.up_motion_ms = 456
+        stats.reset()
+        self.assertEqual(stats.down_motion_ms, 0)
+        self.assertEqual(stats.up_motion_ms, 0)
 
 
 if __name__ == "__main__":

@@ -121,9 +121,19 @@ def feed_sm(ad_ref, move, drip_logger):
             # this, the estimate systematically overshoots on drawings with many
             # segments longer than 50 ms (e.g. many separated pen-up hops), since
             # each one is 30 ms cheaper in reality than the raw move_time.
-            ad_ref.plot_status.stats.pt_estimate += move_time - 30
+            discounted_time = move_time - 30
         else:
-            ad_ref.plot_status.stats.pt_estimate += move_time
+            discounted_time = move_time
+        ad_ref.plot_status.stats.pt_estimate += discounted_time
+        # Split the same (already-discounted) contribution by pen state, using
+        # the same z_up flag add_dist() below uses to split *distance* - a
+        # lossless partition of pt_estimate's SM-move share, added for
+        # idraw_ui's self-calibrating estimate (down_motion_ms/up_motion_ms
+        # let it correct pendown vs. penup motion time independently).
+        if ad_ref.pen.phys.z_up:
+            ad_ref.plot_status.stats.up_motion_ms += discounted_time
+        else:
+            ad_ref.plot_status.stats.down_motion_ms += discounted_time
         # log_sm_for_preview(ad_ref, move)
 
         ad_ref.preview.log_sm_move(ad_ref, move)
